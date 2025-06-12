@@ -1,0 +1,1652 @@
+# FARMABOOSTER - REQUIREMENT BACKEND
+## Documento di Specifica Tecnica per lo Sviluppo del Backend
+
+### PANORAMICA GENERALE
+Il backend deve supportare una piattaforma B2B per la gestione di ordini farmaceutici (ODA - Ordini Diretti Acquisto) tra farmacie e fornitori, con funzionalità di amministrazione centralizzata.
+
+### 📊 INDICE RAPIDO
+- [1. Gestione Prodotti](#1-gestione-prodotti-farmaceutici)
+- [2. Gestione Fornitori](#2-gestione-fornitori) 
+- [3. Gestione Utenti](#3-gestione-utenti-e-autenticazione)
+- [4. Gestione Ordini ODA](#4-gestione-ordini-diretti-acquisto-oda)
+- [5. Sistema Stock Avanzato](#5-sistema-avanzato-di-gestione-stock-e-disponibilità)
+- [6. Error Handling](#6-error-handling--logging-enterprise)
+- [7. Notifiche](#7-notifiche-e-comunicazioni)
+- [8. Workflow Avanzato](#8-workflow-avanzato-ordini-e-business-rules)
+- [9. Analytics](#9-analytics-e-reporting)
+- [10. Integrazioni](#10-integrazione-sistemi-esterni)
+- [11. Sicurezza](#11-sicurezza-e-compliance-enterprise)
+- [12. Performance](#12-performance-e-scalabilità-enterprise)
+- [Esempi Pratici](#esempi-pratici-e-casi-duso)
+- [Glossario](#glossario)
+
+### 🎯 OBIETTIVI PRINCIPALI
+1. **Automazione Ordini**: Workflow completo ODA con approvazioni multi-livello
+2. **Gestione Intelligente Stock**: Monitoraggio real-time e alert automatici
+3. **Import/Export Massivo**: Gestione batch di prezzi e fornitori
+4. **Analytics Avanzate**: Dashboard e report personalizzati
+5. **Scalabilità Enterprise**: Architettura moderna per crescita futura
+
+---
+
+## 1. GESTIONE PRODOTTI FARMACEUTICI
+
+### 1.1 Catalogo Prodotti
+**Entità: Product**
+- `id`: Identificativo univoco
+- `ean`: Codice EAN-13 (European Article Number)
+- `minsan`: Codice MINSAN (Ministero della Salute)
+- `name`: Nome commerciale del prodotto
+- `description`: Descrizione dettagliata
+- `manufacturer`: Casa farmaceutica/produttore
+- `category`: Categoria farmaceutica (Analgesics, Antibiotics, Antivirals, Vitamins, Supplements, Dermatological, Gastrointestinal, Cardiovascular, Respiratory, Eye care, Dental care, First aid, Hygiene products, Baby care, Orthopedic, Diabetes management)
+- `publicPrice`: Prezzo al pubblico
+- `vat`: Percentuale IVA (10% farmaci, 22% altri)
+- `inStock`: Disponibilità generale
+- `image`: URL immagine prodotto
+- `createdAt`: Data creazione
+- `updatedAt`: Data ultima modifica
+
+**API Endpoints:**
+- `GET /api/products` - Lista prodotti con filtri e paginazione
+- `GET /api/products/{id}` - Dettaglio singolo prodotto
+- `POST /api/products` - Creazione nuovo prodotto (Admin)
+- `PUT /api/products/{id}` - Aggiornamento prodotto (Admin)
+- `DELETE /api/products/{id}` - Eliminazione prodotto (Admin)
+- `POST /api/products/import` - Import massivo da Excel/CSV
+- `GET /api/products/categories` - Lista categorie
+- `GET /api/products/manufacturers` - Lista produttori
+
+### 📋 ESEMPI PRATICI API PRODOTTI
+
+#### Esempio 1: Lista Prodotti con Filtri
+**Request:**
+```http
+GET /api/products?searchTerm=tachipirina&category=Analgesics&page=1&limit=10
+Authorization: Bearer {jwt_token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "products": [
+      {
+        "id": "prod_001",
+        "ean": "8029877011234",
+        "minsan": "034528012",
+        "name": "Tachipirina 500mg 20 compresse",
+        "description": "Paracetamolo per dolori e febbre",
+        "manufacturer": "Angelini Pharma",
+        "category": "Analgesics",
+        "publicPrice": 4.50,
+        "vat": 10,
+        "inStock": true,
+        "image": "https://cdn.farmabooster.com/products/tachipirina-500.jpg",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-20T14:45:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 145,
+      "totalPages": 15
+    }
+  }
+}
+```
+
+#### Esempio 2: Creazione Prodotto
+**Request:**
+```http
+POST /api/products
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "ean": "8029877011234",
+  "minsan": "034528012",
+  "name": "Moment 200mg 12 compresse",
+  "description": "Ibuprofene per dolori e infiammazioni",
+  "manufacturer": "Angelini Pharma",
+  "category": "Analgesics",
+  "publicPrice": 6.90,
+  "vat": 10,
+  "inStock": true,
+  "image": "https://cdn.farmabooster.com/products/moment-200.jpg"
+}
+```
+
+**Response Success:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "prod_002",
+    "ean": "8029877011234",
+    "minsan": "034528012",
+    "name": "Moment 200mg 12 compresse",
+    "description": "Ibuprofene per dolori e infiammazioni",
+    "manufacturer": "Angelini Pharma",
+    "category": "Analgesics",
+    "publicPrice": 6.90,
+    "vat": 10,
+    "inStock": true,
+    "image": "https://cdn.farmabooster.com/products/moment-200.jpg",
+    "createdAt": "2024-01-22T09:15:00Z",
+    "updatedAt": "2024-01-22T09:15:00Z"
+  },
+  "message": "Prodotto creato con successo"
+}
+```
+
+**Response Error:**
+```json
+{
+  "success": false,
+  "error": {
+    "type": "https://api.farmabooster.com/errors/validation",
+    "title": "Validation Error",
+    "status": 400,
+    "detail": "EAN code already exists",
+    "instance": "/api/products",
+    "correlationId": "req_xyz789",
+    "errors": [
+      {
+        "field": "ean",
+        "message": "EAN code 8029877011234 already exists",
+        "code": "DUPLICATE_EAN"
+      }
+    ]
+  }
+}
+```
+
+**Filtri supportati:**
+- `searchTerm`: Ricerca per nome, EAN, MINSAN
+- `category`: Filtro per categoria
+- `manufacturer`: Filtro per produttore
+- `inStockOnly`: Solo prodotti disponibili
+- `minPrice/maxPrice`: Range di prezzo
+
+### 1.2 Prezzi Fornitori
+**Entità: ProductPrice**
+- `id`: Identificativo univoco
+- `productId`: Riferimento al prodotto
+- `supplierId`: Riferimento al fornitore
+- `price`: Prezzo netto fornitore
+- `stock`: Quantità disponibile
+- `minimumOrder`: Quantità minima ordinabile
+- `deliveryTime`: Tempo di consegna stimato
+- `lastUpdated`: Ultima modifica prezzo
+- `isActive`: Stato attivo/inattivo
+- `validFrom`: Data inizio validità prezzo
+- `validTo`: Data fine validità prezzo
+- `currency`: Valuta (default EUR)
+- `discountTiers`: Sconti per quantità (JSON)
+
+### 1.3 Gestione Batch Prezzi/Fornitori
+**Entità: PriceBatchOperation**
+- `id`: Identificativo univoco
+- `operationType`: Tipo operazione (CREATE, UPDATE, DELETE)
+- `fileName`: Nome file sorgente
+- `uploadedBy`: Utente che ha caricato
+- `status`: Stato elaborazione (PENDING, PROCESSING, COMPLETED, FAILED)
+- `totalRecords`: Totale record nel file
+- `processedRecords`: Record elaborati
+- `errorRecords`: Record con errori
+- `errors`: Dettaglio errori (JSON)
+- `createdAt`: Data creazione
+- `completedAt`: Data completamento
+
+**Entità: PriceBatchItem**
+- `id`: Identificativo univoco
+- `batchOperationId`: Riferimento operazione batch
+- `rowNumber`: Numero riga nel file
+- `productIdentifier`: EAN/MINSAN/Codice prodotto
+- `supplierName`: Nome fornitore
+- `price`: Prezzo
+- `stock`: Stock
+- `status`: Stato riga (PENDING, SUCCESS, ERROR)
+- `errorMessage`: Messaggio errore
+
+**API Endpoints:**
+- `GET /api/products/{productId}/prices` - Prezzi per prodotto
+- `POST /api/products/{productId}/prices` - Aggiunta prezzo fornitore
+- `PUT /api/product-prices/{id}` - Aggiornamento prezzo
+- `DELETE /api/product-prices/{id}` - Eliminazione prezzo
+- `POST /api/product-prices/batch` - Import massivo prezzi da Excel/CSV
+- `PUT /api/product-prices/batch` - Aggiornamento massivo prezzi
+- `POST /api/product-prices/bulk-update` - Aggiornamento bulk per prodotti selezionati
+- `GET /api/batch-operations` - Lista operazioni batch
+- `GET /api/batch-operations/{id}` - Dettaglio operazione batch
+- `GET /api/batch-operations/{id}/status` - Stato elaborazione batch
+- `GET /api/batch-operations/{id}/errors` - Errori elaborazione batch
+- `POST /api/batch-operations/{id}/retry` - Riprova elaborazione elementi falliti
+- `GET /api/batch-templates/prices` - Download template Excel prezzi
+
+### 📊 ESEMPI PRATICI GESTIONE BATCH
+
+#### Esempio 3: Import Massivo Prezzi
+**Request:**
+```http
+POST /api/product-prices/batch
+Authorization: Bearer {jwt_token}
+Content-Type: multipart/form-data
+
+file: [Excel/CSV File]
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "batchOperationId": "batch_001",
+    "fileName": "prezzi_fornitori_gennaio_2024.xlsx",
+    "status": "PROCESSING",
+    "totalRecords": 1500,
+    "estimatedTime": "5-7 minuti"
+  },
+  "message": "Import avviato con successo"
+}
+```
+
+#### Esempio 4: Stato Elaborazione Batch
+**Request:**
+```http
+GET /api/batch-operations/batch_001/status
+Authorization: Bearer {jwt_token}
+```
+
+**Response Durante Elaborazione:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "batch_001",
+    "status": "PROCESSING",
+    "progress": {
+      "totalRecords": 1500,
+      "processedRecords": 1200,
+      "successRecords": 1150,
+      "errorRecords": 50,
+      "completionPercentage": 80
+    },
+    "estimatedTimeRemaining": "1-2 minuti"
+  }
+}
+```
+
+**Response Completato:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "batch_001",
+    "status": "COMPLETED",
+    "summary": {
+      "totalRecords": 1500,
+      "processedRecords": 1500,
+      "successRecords": 1450,
+      "errorRecords": 50,
+      "completionPercentage": 100
+    },
+    "completedAt": "2024-01-22T11:30:00Z",
+    "executionTime": "6 minuti 23 secondi",
+    "errorSummary": {
+      "duplicateEAN": 30,
+      "invalidPrice": 15,
+      "unknownSupplier": 5
+    }
+  }
+}
+```
+
+#### Esempio 5: Gestione Errori Batch
+**Request:**
+```http
+GET /api/batch-operations/batch_001/errors
+Authorization: Bearer {jwt_token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "errors": [
+      {
+        "rowNumber": 45,
+        "productIdentifier": "8029877011234",
+        "supplierName": "Fornitore XYZ",
+        "errorType": "DUPLICATE_EAN",
+        "errorMessage": "EAN già presente per questo fornitore",
+        "suggestedAction": "Verificare EAN o aggiornare prezzo esistente"
+      },
+      {
+        "rowNumber": 78,
+        "productIdentifier": "8029877055555",
+        "supplierName": "Fornitore ABC",
+        "errorType": "INVALID_PRICE",
+        "errorMessage": "Prezzo non valido: -5.50",
+        "suggestedAction": "Inserire prezzo positivo"
+      }
+    ],
+    "downloadUrl": "/api/batch-operations/batch_001/errors/export"
+  }
+}
+```
+
+---
+
+## 2. GESTIONE FORNITORI
+
+### 2.1 Anagrafica Fornitori
+**Entità: Supplier**
+- `id`: Identificativo univoco
+- `name`: Ragione sociale
+- `email`: Email principale
+- `phone`: Telefono
+- `address`: Indirizzo completo
+- `vatNumber`: Partita IVA
+- `rating`: Rating medio (1-5)
+- `deliveryTime`: Tempo consegna standard
+- `paymentTerms`: Condizioni di pagamento
+- `isActive`: Stato attivo/inattivo
+- `createdAt`: Data registrazione
+
+**API Endpoints:**
+- `GET /api/suppliers` - Lista fornitori
+- `GET /api/suppliers/{id}` - Dettaglio fornitore
+- `POST /api/suppliers` - Registrazione nuovo fornitore
+- `PUT /api/suppliers/{id}` - Aggiornamento fornitore
+- `DELETE /api/suppliers/{id}` - Eliminazione fornitore
+
+---
+
+## 3. GESTIONE UTENTI E AUTENTICAZIONE
+
+### 3.1 Utenti
+**Entità: User**
+- `id`: Identificativo univoco
+- `firstName`: Nome
+- `lastName`: Cognome
+- `email`: Email (username)
+- `password`: Hash password
+- `role`: Ruolo (Administrator, Manager, Pharmacy, Supplier)
+- `associatedEntity`: Entità associata (nome farmacia/fornitore)
+- `entityId`: ID dell'entità associata
+- `status`: Stato (Active, Inactive, Suspended)
+- `permissions`: Permessi granulari
+- `lastLogin`: Ultimo accesso
+- `failedLoginAttempts`: Tentativi falliti
+- `passwordResetToken`: Token reset password
+- `emailVerified`: Email verificata
+- `createdAt`: Data creazione
+- `updatedAt`: Ultima modifica
+
+**Ruoli e Permessi:**
+- **Administrator**: Accesso completo al sistema
+- **Manager**: Gestione ordini e prodotti, accesso limitato utenti
+- **Pharmacy**: Creazione e gestione ODA
+- **Supplier**: Gestione listini e evasione ordini
+
+**API Endpoints:**
+- `POST /api/auth/login` - Autenticazione
+- `POST /api/auth/logout` - Logout
+- `POST /api/auth/refresh` - Refresh token
+- `POST /api/auth/forgot-password` - Reset password
+- `POST /api/auth/reset-password` - Conferma reset password
+- `GET /api/users` - Lista utenti (Admin)
+- `GET /api/users/{id}` - Dettaglio utente
+- `POST /api/users` - Creazione utente (Admin)
+- `PUT /api/users/{id}` - Aggiornamento utente
+- `DELETE /api/users/{id}` - Eliminazione utente (Admin)
+- `GET /api/users/activities` - Log attività utenti
+
+### 3.2 Entità Associate
+**Entità: Pharmacy**
+- `id`: Identificativo univoco
+- `name`: Nome farmacia
+- `address`: Indirizzo completo
+- `phone`: Telefono
+- `email`: Email
+- `licenseNumber`: Numero licenza
+- `ownerId`: Proprietario/responsabile
+- `isActive`: Stato attivo
+
+**Entità: Entity (Generica per fornitori e farmacie)**
+- `id`: Identificativo univoco
+- `type`: Tipo (Pharmacy, Supplier)
+- `name`: Nome entità
+- `details`: Dettagli specifici (JSON)
+
+---
+
+## 4. GESTIONE ORDINI DIRETTI ACQUISTO (ODA)
+
+### 4.1 Ordini Principali
+**Entità: Order**
+- `id`: Codice ordine (formato ODA-XXXX)
+- `buyerId`: ID farmacia acquirente
+- `buyerName`: Nome farmacia
+- `status`: Stato ordine (Draft, Pending Approval, Processing, Approved, Rejected, Counter Offer, Picking Required, Partial Approved)
+- `totalProducts`: Numero prodotti
+- `totalItems`: Quantità totale
+- `totalAmount`: Importo totale
+- `deliveryAddress`: Indirizzo consegna
+- `deliveryDate`: Data consegna richiesta
+- `estimatedDelivery`: Consegna stimata
+- `paymentMethod`: Metodo pagamento
+- `priority`: Priorità (Low, Medium, High, Urgent)
+- `orderType`: Tipo (Standard, Express, Bulk)
+- `notes`: Note aggiuntive
+- `createdAt`: Data creazione
+- `updatedAt`: Ultima modifica
+- `submittedAt`: Data invio (da Draft a Pending)
+
+**Stati Ordine:**
+- **Draft**: Bozza, modificabile dalla farmacia
+- **Pending Approval**: In attesa approvazione admin
+- **Processing**: In elaborazione
+- **Approved**: Approvato
+- **Rejected**: Rifiutato
+- **Counter Offer**: Controproposta inviata
+- **Picking Required**: Richiede gestione picking
+- **Partial Approved**: Approvato parzialmente
+
+### 4.2 Dettagli Prodotti Ordine
+**Entità: OrderItem**
+- `id`: Identificativo univoco
+- `orderId`: Riferimento ordine
+- `productId`: Riferimento prodotto
+- `quantity`: Quantità richiesta
+- `unitPrice`: Prezzo unitario
+- `totalPrice`: Prezzo totale riga
+- `supplierId`: Fornitore selezionato
+- `supplierName`: Nome fornitore
+- `stockAvailable`: Stock disponibile
+- `estimatedDelivery`: Consegna stimata
+- `pickingStatus`: Stato picking
+- `allocatedQuantity`: Quantità allocata
+- `notes`: Note specifiche prodotto
+
+### 4.3 Controproposte
+**Entità: CounterOffer**
+- `id`: Identificativo univoco
+- `orderId`: Riferimento ordine
+- `originalAmount`: Importo originale
+- `proposedAmount`: Importo proposto
+- `message`: Messaggio admin
+- `status`: Stato (Pending, Accepted, Rejected, Expired)
+- `adminId`: Admin che ha creato l'offerta
+- `adminName`: Nome admin
+- `expiryDate`: Data scadenza
+- `createdAt`: Data creazione
+- `respondedAt`: Data risposta
+- `requiresPickingApproval`: Richiede approvazione picking
+
+**Entità: CounterOfferItem**
+- `id`: Identificativo univoco
+- `counterOfferId`: Riferimento controproposta
+- `productId`: Riferimento prodotto
+- `originalQuantity`: Quantità originale
+- `proposedQuantity`: Quantità proposta
+- `originalPrice`: Prezzo originale
+- `proposedPrice`: Prezzo proposto
+- `reason`: Motivo modifica
+
+### 4.4 Gestione Picking
+**Entità: PickingDetail**
+- `id`: Identificativo univoco
+- `orderItemId`: Riferimento riga ordine
+- `originalQuantity`: Quantità originale
+- `availableQuantity`: Quantità disponibile
+- `allocatedQuantity`: Quantità allocata
+- `reason`: Motivo riduzione/non disponibilità
+- `estimatedRestockDate`: Data prevista riapprovvigionamento
+- `supplierComment`: Commento fornitore
+- `status`: Stato picking
+
+**Entità: AlternativeProduct**
+- `id`: Identificativo univoco
+- `pickingDetailId`: Riferimento picking
+- `productId`: Prodotto alternativo
+- `quantity`: Quantità disponibile
+- `unitPrice`: Prezzo unitario
+
+### 4.5 Preferenze Buyer
+**Entità: BuyerPreference**
+- `id`: Identificativo univoco
+- `buyerId`: Riferimento farmacia
+- `autoAcceptPartialDelivery`: Accetta consegne parziali
+- `maxAcceptableReduction`: Riduzione massima accettabile (%)
+- `requireConfirmationForAlternatives`: Richiede conferma per prodotti alternativi
+- `emailNotifications`: Notifiche email
+- `inAppNotifications`: Notifiche in-app
+- `smsNotifications`: Notifiche SMS
+
+**API Endpoints Ordini:**
+- `GET /api/orders` - Lista ordini con filtri
+- `GET /api/orders/{id}` - Dettaglio ordine
+- `POST /api/orders` - Creazione ordine
+- `PUT /api/orders/{id}` - Aggiornamento ordine
+- `DELETE /api/orders/{id}` - Eliminazione ordine (solo Draft)
+- `POST /api/orders/{id}/submit` - Invio ordine (Draft → Pending)
+- `POST /api/orders/{id}/approve` - Approvazione ordine (Admin)
+- `POST /api/orders/{id}/reject` - Rifiuto ordine (Admin)
+- `POST /api/orders/{id}/counter-offer` - Controproposta (Admin)
+- `POST /api/orders/{id}/accept-counter` - Accettazione controproposta
+- `POST /api/orders/{id}/reject-counter` - Rifiuto controproposta
+- `GET /api/orders/{id}/picking` - Dettagli picking
+- `POST /api/orders/{id}/picking/process` - Elaborazione picking
+
+### 🛒 ESEMPI PRATICI GESTIONE ORDINI
+
+#### Esempio 6: Creazione Ordine
+**Request:**
+```http
+POST /api/orders
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "buyerId": "pharmacy_001",
+  "deliveryAddress": {
+    "street": "Via Roma 123",
+    "city": "Milano",
+    "postalCode": "20100",
+    "country": "IT"
+  },
+  "deliveryDate": "2024-01-30T00:00:00Z",
+  "paymentMethod": "BANK_TRANSFER",
+  "priority": "Medium",
+  "orderType": "Standard",
+  "notes": "Ordine urgente per rifornimento",
+  "items": [
+    {
+      "productId": "prod_001",
+      "quantity": 50,
+      "supplierId": "supplier_001",
+      "notes": "Preferire lotto più recente"
+    },
+    {
+      "productId": "prod_002",
+      "quantity": 30,
+      "supplierId": "supplier_002"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ODA-0001",
+    "buyerId": "pharmacy_001",
+    "buyerName": "Farmacia Centrale Milano",
+    "status": "Draft",
+    "totalProducts": 2,
+    "totalItems": 80,
+    "totalAmount": 245.50,
+    "deliveryAddress": {
+      "street": "Via Roma 123",
+      "city": "Milano",
+      "postalCode": "20100",
+      "country": "IT"
+    },
+    "deliveryDate": "2024-01-30T00:00:00Z",
+    "estimatedDelivery": "2024-01-31T00:00:00Z",
+    "paymentMethod": "BANK_TRANSFER",
+    "priority": "Medium",
+    "orderType": "Standard",
+    "notes": "Ordine urgente per rifornimento",
+    "createdAt": "2024-01-22T12:00:00Z",
+    "updatedAt": "2024-01-22T12:00:00Z",
+    "items": [
+      {
+        "id": "item_001",
+        "productId": "prod_001",
+        "productName": "Tachipirina 500mg 20 compresse",
+        "quantity": 50,
+        "unitPrice": 3.20,
+        "totalPrice": 160.00,
+        "supplierId": "supplier_001",
+        "supplierName": "Pharma Supply SpA",
+        "stockAvailable": 120,
+        "estimatedDelivery": "2024-01-31T00:00:00Z"
+      },
+      {
+        "id": "item_002",
+        "productId": "prod_002",
+        "productName": "Moment 200mg 12 compresse",
+        "quantity": 30,
+        "unitPrice": 2.85,
+        "totalPrice": 85.50,
+        "supplierId": "supplier_002",
+        "supplierName": "MedDistribution Srl",
+        "stockAvailable": 45,
+        "estimatedDelivery": "2024-01-30T00:00:00Z"
+      }
+    ]
+  },
+  "message": "Ordine creato con successo"
+}
+```
+
+#### Esempio 7: Workflow Controproposta
+**Request Admin (Controproposta):**
+```http
+POST /api/orders/ODA-0001/counter-offer
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "message": "Stock insufficiente per alcuni prodotti. Proponiamo quantità alternative.",
+  "expiryDate": "2024-01-25T23:59:59Z",
+  "requiresPickingApproval": true,
+  "items": [
+    {
+      "productId": "prod_001",
+      "originalQuantity": 50,
+      "proposedQuantity": 40,
+      "originalPrice": 3.20,
+      "proposedPrice": 3.10,
+      "reason": "Stock limitato, offriamo sconto compensativo"
+    },
+    {
+      "productId": "prod_002",
+      "originalQuantity": 30,
+      "proposedQuantity": 30,
+      "originalPrice": 2.85,
+      "proposedPrice": 2.85,
+      "reason": "Quantità confermata"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "counterOfferId": "counter_001",
+    "orderId": "ODA-0001",
+    "originalAmount": 245.50,
+    "proposedAmount": 209.50,
+    "status": "Pending",
+    "adminId": "admin_001",
+    "adminName": "Mario Rossi",
+    "expiryDate": "2024-01-25T23:59:59Z",
+    "createdAt": "2024-01-22T14:30:00Z",
+    "items": [
+      {
+        "productId": "prod_001",
+        "productName": "Tachipirina 500mg 20 compresse",
+        "originalQuantity": 50,
+        "proposedQuantity": 40,
+        "originalPrice": 3.20,
+        "proposedPrice": 3.10,
+        "reason": "Stock limitato, offriamo sconto compensativo",
+        "savings": 19.50
+      },
+      {
+        "productId": "prod_002",
+        "productName": "Moment 200mg 12 compresse",
+        "originalQuantity": 30,
+        "proposedQuantity": 30,
+        "originalPrice": 2.85,
+        "proposedPrice": 2.85,
+        "reason": "Quantità confermata",
+        "savings": 0
+      }
+    ],
+    "totalSavings": 19.50
+  },
+  "message": "Controproposta inviata con successo"
+}
+```
+
+---
+
+## 5. SISTEMA AVANZATO DI GESTIONE STOCK E DISPONIBILITÀ
+
+### 5.1 Gestione Targeting Prezzi
+**Entità: PriceTarget**
+- `id`: Identificativo univoco
+- `productId`: Riferimento al prodotto
+- `buyerId`: Riferimento farmacia (opzionale per target globali)
+- `targetPrice`: Prezzo obiettivo
+- `tolerance`: Tolleranza percentuale (es. 5%)
+- `isActive`: Stato attivo
+- `createdAt`: Data creazione
+- `achievedAt`: Data raggiungimento target (nullable)
+
+### 5.2 Alert Prezzi e Stock
+**Entità: PriceAlert**
+- `id`: Identificativo univoco
+- `productId`: Riferimento al prodotto
+- `alertType`: Tipo alert (PRICE_DROP, STOCK_AVAILABLE, TARGET_REACHED)
+- `threshold`: Soglia di attivazione
+- `isTriggered`: Alert scattato
+- `lastTriggered`: Ultima attivazione
+- `subscribers`: Lista utenti da notificare (JSON)
+
+### 5.3 Stock Real-time
+**Entità: StockLevel**
+- `id`: Identificativo univoco
+- `productId`: Riferimento al prodotto
+- `supplierId`: Riferimento fornitore
+- `currentStock`: Stock attuale
+- `reservedStock`: Stock riservato per ordini
+- `availableStock`: Stock disponibile (current - reserved)
+- `lowStockThreshold`: Soglia stock basso
+- `lastUpdated`: Ultimo aggiornamento
+- `autoUpdate`: Aggiornamento automatico attivo
+
+**API Endpoints Stock:**
+- `GET /api/stock/levels` - Livelli stock per tutti i prodotti
+- `GET /api/stock/levels/{productId}` - Stock specifico prodotto
+- `PUT /api/stock/levels/{productId}` - Aggiornamento stock
+- `POST /api/stock/alerts` - Creazione alert stock
+- `GET /api/price-targets` - Lista target prezzi
+- `POST /api/price-targets` - Creazione target prezzo
+- `PUT /api/price-targets/{id}` - Aggiornamento target
+
+## 6. ERROR HANDLING & LOGGING ENTERPRISE
+
+### 6.1 Advanced Error Management
+**Structured Error Handling**
+- **Error Categories**: BusinessError, ValidationError, SystemError, ExternalError
+- **Error Codes**: Standardized error codes per categoria (ERR-001, ERR-002, etc.)
+- **Error Context**: Stack traces, user context, request correlation IDs
+- **Graceful Degradation**: Fallback mechanisms per servizi non critici
+
+**Error Recovery Strategies**
+- **Circuit Breaker**: Automatic failure detection e recovery (Hystrix pattern)
+- **Retry Policies**: Exponential backoff con jitter per API esterne
+- **Dead Letter Queues**: Gestione messaggi non processabili
+- **Health Checks**: Proactive error detection (/health, /ready endpoints)
+
+**Error Response Format (RFC 7807 - Problem Details)**
+```json
+{
+  "type": "https://api.farmabooster.com/errors/validation",
+  "title": "Validation Error",
+  "status": 400,
+  "detail": "Product EAN code is invalid",
+  "instance": "/api/products",
+  "correlationId": "abc123-def456-ghi789"
+}
+```
+
+### 6.2 Enterprise Logging Strategy
+**Structured Logging (JSON Format)**
+- **Correlation IDs**: Request tracing attraverso microservices
+- **Log Levels**: TRACE, DEBUG, INFO, WARN, ERROR, FATAL
+- **Contextual Information**: User ID, session ID, transaction ID, IP address
+- **Performance Metrics**: Response times, query execution times, memory usage
+
+**Log Management & Retention**
+- **Centralized Logging**: ELK Stack con Filebeat per log shipping
+- **Log Retention Policy**: 
+  - Application logs: 90 giorni hot, 1 anno cold storage
+  - Security logs: 7 anni per compliance
+  - Audit logs: Permanenti con backup
+- **Log Analysis**: Automated anomaly detection con ML
+- **Real-time Alerts**: Critical error notifications via Slack/PagerDuty
+
+**Security & Compliance Logging**
+- **Audit Trail**: Immutable logs per operazioni critiche
+- **PII Redaction**: Automatic masking dati sensibili nei logs
+- **Compliance Logging**: GDPR, HIPAA compliant log management
+- **Log Integrity**: Hash verification per tamper detection
+
+### 6.3 Monitoring & Observability Enterprise
+**SLI/SLO (Service Level Indicators/Objectives)**
+- **Availability**: 99.9% uptime (43.8 minuti downtime/mese)
+- **Response Time**: P95 < 500ms, P99 < 1s
+- **Error Rate**: < 0.1% per endpoint critico
+- **Throughput**: Support 1000+ concurrent users
+
+**Advanced Monitoring Stack**
+- **APM**: Datadog/New Relic per deep application insights
+- **Infrastructure**: Prometheus + Grafana per system metrics
+- **Business Metrics**: Custom dashboards per KPI specifici
+- **Synthetic Monitoring**: Uptime checks da multiple locations
+
+**Intelligent Alerting**
+- **Alert Fatigue Prevention**: Smart grouping, correlation, throttling
+- **Escalation Policies**: Multi-tier alert escalation (15min/30min/1h)
+- **Runbook Integration**: Automated remediation con documented steps
+- **Post-incident Reviews**: Automated RCA con timeline reconstruction
+
+## 7. NOTIFICHE E COMUNICAZIONI
+
+### 7.1 Sistema Notifiche
+**Entità: Notification**
+- `id`: Identificativo univoco
+- `userId`: Destinatario
+- `orderId`: Ordine correlato (opzionale)
+- `type`: Tipo notifica (order_status, picking_issue, counter_offer, etc.)
+- `title`: Titolo notifica
+- `message`: Messaggio
+- `isRead`: Letta/Non letta
+- `createdAt`: Data creazione
+- `readAt`: Data lettura
+
+**Tipi Notifica:**
+- `order_submitted`: Ordine inviato
+- `order_approved`: Ordine approvato
+- `order_rejected`: Ordine rifiutato
+- `counter_offer_received`: Controproposta ricevuta
+- `picking_issue`: Problema disponibilità
+- `partial_delivery`: Consegna parziale
+- `alternative_suggested`: Prodotto alternativo suggerito
+
+**API Endpoints:**
+- `GET /api/notifications` - Lista notifiche utente
+- `PUT /api/notifications/{id}/read` - Marca come letta
+- `POST /api/notifications/mark-all-read` - Marca tutte come lette
+- `DELETE /api/notifications/{id}` - Elimina notifica
+
+---
+
+## 8. WORKFLOW AVANZATO ORDINI E BUSINESS RULES
+
+### 8.1 Business Rules Engine
+**Entità: BusinessRule**
+- `id`: Identificativo univoco
+- `name`: Nome regola
+- `type`: Tipo regola (APPROVAL, PRICING, STOCK, DISCOUNT)
+- `conditions`: Condizioni attivazione (JSON)
+- `actions`: Azioni da eseguire (JSON)
+- `priority`: Priorità esecuzione
+- `isActive`: Stato attivo
+- `applicableRoles`: Ruoli applicabili
+
+### 8.2 Workflow Stati Ordini Avanzato
+**Entità: OrderWorkflow**
+- `id`: Identificativo univoco
+- `orderId`: Riferimento ordine
+- `fromStatus`: Stato precedente
+- `toStatus`: Stato successivo
+- `triggeredBy`: Utente che ha triggerato
+- `triggeredAt`: Data/ora transizione
+- `reason`: Motivo cambio stato
+- `automaticTransition`: Transizione automatica
+- `metadata`: Metadati aggiuntivi (JSON)
+
+### 8.3 Approvazioni Multi-livello
+**Entità: ApprovalWorkflow**
+- `id`: Identificativo univoco
+- `orderId`: Riferimento ordine
+- `level`: Livello approvazione (1, 2, 3...)
+- `approverRole`: Ruolo richiesto per approvazione
+- `approverId`: ID dell'approvatore (nullable)
+- `status`: Stato (PENDING, APPROVED, REJECTED)
+- `comments`: Commenti approvatore
+- `deadline`: Scadenza approvazione
+- `approvedAt`: Data approvazione
+
+### 8.4 Gestione Eccezioni Ordini
+**Entità: OrderException**
+- `id`: Identificativo univoco
+- `orderId`: Riferimento ordine
+- `exceptionType`: Tipo eccezione (OVER_BUDGET, STOCK_SHORTAGE, COMPLIANCE_ISSUE)
+- `severity`: Gravità (LOW, MEDIUM, HIGH, CRITICAL)
+- `description`: Descrizione eccezione
+- `resolution`: Risoluzione applicata
+- `resolvedBy`: Utente che ha risolto
+- `resolvedAt`: Data risoluzione
+- `escalated`: Escalation a livello superiore
+
+**API Endpoints Workflow:**
+- `GET /api/workflows/orders/{orderId}` - Storia workflow ordine
+- `POST /api/workflows/orders/{orderId}/transition` - Cambio stato ordine
+- `GET /api/approvals/pending` - Approvazioni in attesa
+- `POST /api/approvals/{id}/approve` - Approvazione
+- `POST /api/approvals/{id}/reject` - Rifiuto approvazione
+- `GET /api/exceptions/orders` - Lista eccezioni ordini
+- `POST /api/exceptions/{id}/resolve` - Risoluzione eccezione
+
+## 9. ANALYTICS E REPORTING
+
+### 9.1 Dashboard Statistiche
+**Metriche Ordini:**
+- Ordini totali per periodo
+- Ordini per stato
+- Tempo medio approvazione
+- Tasso di approvazione
+- Importo medio ordini
+- Prodotti più ordinati
+
+**Metriche Fornitori:**
+- Performance fornitori
+- Tempi consegna medi
+- Tasso di disponibilità prodotti
+- Prezzi competitivi
+
+**API Endpoints Analytics:**
+- `GET /api/analytics/orders` - Statistiche ordini
+- `GET /api/analytics/suppliers` - Performance fornitori
+- `GET /api/analytics/products` - Analisi prodotti
+- `GET /api/analytics/users` - Attività utenti
+- `GET /api/analytics/pricing` - Analisi prezzi e margini
+- `GET /api/analytics/stock` - Analisi stock e rotazione
+- `GET /api/analytics/forecast` - Previsioni domanda
+- `GET /api/analytics/profitability` - Analisi redditività
+
+### 9.2 Reporting Avanzato
+**Entità: Report**
+- `id`: Identificativo univoco
+- `name`: Nome report
+- `type`: Tipo report (ORDERS, PRODUCTS, SUPPLIERS, FINANCIAL)
+- `parameters`: Parametri report (JSON)
+- `schedule`: Pianificazione automatica (CRON expression)
+- `format`: Formato output (PDF, EXCEL, CSV)
+- `recipients`: Destinatari (email list)
+- `lastGenerated`: Ultima generazione
+- `isActive`: Stato attivo
+
+**Entità: ReportExecution**
+- `id`: Identificativo univoco
+- `reportId`: Riferimento report
+- `status`: Stato generazione (PENDING, RUNNING, COMPLETED, FAILED)
+- `parameters`: Parametri usati
+- `filePath`: Percorso file generato
+- `fileSize`: Dimensione file
+- `executionTime`: Tempo esecuzione
+- `startedAt`: Inizio generazione
+- `completedAt`: Fine generazione
+- `error`: Messaggio errore
+
+**API Endpoints Reporting:**
+- `GET /api/reports` - Lista report configurati
+- `POST /api/reports` - Creazione nuovo report
+- `GET /api/reports/{id}/execute` - Esecuzione immediata report
+- `GET /api/reports/{id}/executions` - Storia esecuzioni report
+- `GET /api/reports/executions/{id}/download` - Download file report
+
+---
+
+## 10. INTEGRAZIONE SISTEMI ESTERNI
+
+### 10.1 Database Farmaceutico
+- Integrazione con database prodotti farmaceutici esterni
+- Sincronizzazione prezzi e disponibilità
+- Aggiornamento automatico informazioni prodotti
+
+### 10.2 Sistemi Gestionali
+- API per integrazione con sistemi gestionali farmacie
+- Export ordini in formati standard
+- Sincronizzazione magazzino
+
+---
+
+### 10.3 API Esterne e Webservices
+**Entità: ExternalIntegration**
+- `id`: Identificativo univoco
+- `name`: Nome integrazione
+- `type`: Tipo (DATABASE, ERP, API, WEBHOOK)
+- `endpoint`: URL endpoint
+- `authentication`: Metodo autenticazione
+- `credentials`: Credenziali (criptate)
+- `status`: Stato connessione
+- `lastSync`: Ultima sincronizzazione
+- `syncFrequency`: Frequenza sync automatica
+- `mapping`: Mappatura campi (JSON)
+
+**API Endpoints Integrazioni:**
+- `GET /api/integrations` - Lista integrazioni
+- `POST /api/integrations` - Nuova integrazione
+- `POST /api/integrations/{id}/sync` - Sincronizzazione manuale
+- `GET /api/integrations/{id}/status` - Stato integrazione
+- `GET /api/integrations/{id}/logs` - Log sincronizzazioni
+
+## 11. SICUREZZA E COMPLIANCE ENTERPRISE
+
+### 11.1 Autenticazione e Autorizzazione Avanzata
+**Zero-Trust Security Model**
+- **Multi-Factor Authentication (MFA)**: TOTP, SMS, push notifications
+- **JWT + Refresh Tokens**: Implementazione sicura con rotation
+- **OAuth 2.0 / OpenID Connect**: Integrazione SSO enterprise
+- **Role-Based Access Control (RBAC)**: Granularità per moduli specifici
+- **Rate Limiting**: Implementazione anti-DDoS e abuse prevention
+
+**API Security Standards**
+- API Gateway con autenticazione centralizzata
+- Request signing per API critiche
+- IP whitelisting per sistemi esterni
+- Encryption in transit (TLS 1.3) e at rest (AES-256)
+
+### 11.2 Compliance Farmaceutica Rigorosa
+**Regulatory Requirements (FDA, EMA, AIFA)**
+- **21 CFR Part 11**: Electronic records e digital signatures
+- **Good Manufacturing Practice (GMP)**: Tracciabilità produzioni
+- **ISO 13485**: Quality management system per medical devices
+- **Tracciabilità Completa**: Audit trail immutabile per ogni transazione
+
+**Data Integrity & Audit**
+- Blockchain-based audit trail per operazioni critiche
+- Digital signatures per ordini e approvazioni
+- Time-stamping certificato per eventi critici
+- Immutable logs con hash verification
+
+### 11.3 Protezione Dati Enterprise (GDPR, HIPAA, CCPA)
+**Privacy by Design**
+- **Data Minimization**: Raccolta solo dati necessari
+- **Purpose Limitation**: Uso dati limitato allo scopo dichiarato
+- **Storage Limitation**: Automatic data purging policies
+- **Consent Management**: Granular consent tracking e withdrawal
+
+**Advanced Data Protection**
+- **Field-level Encryption**: Per dati sensibili specifici
+- **Pseudonymization**: Per analytics e reporting
+- **Data Loss Prevention (DLP)**: Monitoring esportazioni dati
+- **Backup Encryption**: Multi-region backup con encryption
+
+**Compliance Monitoring & Reporting**
+- Automated compliance scanning
+- GDPR compliance dashboards
+- Breach notification automation (72h requirement)
+- Regular compliance audits e penetration testing
+
+### ✅ CHECKLIST SICUREZZA E COMPLIANCE
+
+#### 🔐 Sicurezza Applicativa
+- [ ] **Autenticazione Multi-Fattore (MFA)** implementata
+- [ ] **JWT Tokens** con refresh rotation automatico
+- [ ] **Rate Limiting** su tutti gli endpoint pubblici
+- [ ] **Input Validation** e sanitizzazione completa
+- [ ] **SQL Injection** protection tramite ORM/prepared statements
+- [ ] **XSS Protection** con Content Security Policy
+- [ ] **HTTPS/TLS 1.3** obbligatorio per tutte le comunicazioni
+- [ ] **API Keys** con scadenza e rotazione automatica
+
+#### 🛡️ Sicurezza Infrastrutturale
+- [ ] **Firewall** configurato con whitelist IP
+- [ ] **VPN/VPC** per accesso risorse interne
+- [ ] **Database Encryption** at-rest e in-transit
+- [ ] **Backup Encryption** con chiavi separate
+- [ ] **Container Security** scanning per vulnerabilità
+- [ ] **Secrets Management** con HashiCorp Vault/AWS Secrets
+- [ ] **Network Segmentation** per isolamento servizi
+- [ ] **DDoS Protection** tramite CDN/Load Balancer
+
+#### 📋 Compliance Farmaceutica
+- [ ] **21 CFR Part 11** electronic records compliance
+- [ ] **GDP (Good Distribution Practice)** per distribuzione
+- [ ] **Audit Trail** immutabile per tutte le transazioni
+- [ ] **Digital Signatures** per ordini e approvazioni
+- [ ] **Tracciabilità Lotti** completa dalla produzione
+- [ ] **Retention Policy** dati per 7 anni (AIFA requirement)
+- [ ] **Change Control** documentato per ogni modifica
+- [ ] **Validation Documentation** per sistemi computerizzati
+
+#### 🌍 GDPR & Privacy
+- [ ] **Privacy Impact Assessment (PIA)** completato
+- [ ] **Consent Management** granulare implementato
+- [ ] **Right to be Forgotten** automatizzato
+- [ ] **Data Portability** in formato strutturato
+- [ ] **Breach Notification** automatica entro 72h
+- [ ] **Data Protection Officer (DPO)** nominato
+- [ ] **Privacy by Design** in tutti i processi
+- [ ] **Cross-border Transfer** conformi a Standard Contractual Clauses
+
+#### 📊 Monitoring e Audit
+- [ ] **SIEM (Security Information Event Management)** attivo
+- [ ] **Log Integrity** con hash verification
+- [ ] **Anomaly Detection** automatizzato
+- [ ] **Penetration Testing** trimestrale
+- [ ] **Vulnerability Scanning** automatizzato
+- [ ] **Security Metrics** dashboard real-time
+- [ ] **Incident Response Plan** testato e aggiornato
+- [ ] **Security Awareness Training** per team
+
+#### 🏥 Compliance Sanitaria Italiana
+- [ ] **AIFA Guidelines** per sistemi informativi
+- [ ] **Codice Privacy** (D.Lgs. 196/2003) rispettato
+- [ ] **CAD (Codice Amministrazione Digitale)** compliance
+- [ ] **Linee Guida AgID** per sviluppo software
+- [ ] **Certificazione ISO 27001** in corso/completata
+- [ ] **Registro Trattamenti** aggiornato e completo
+
+---
+
+## 12. PERFORMANCE E SCALABILITÀ ENTERPRISE
+
+### 12.1 Architettura Scalabile Moderna
+**Horizontal Scaling (Best Practice 2024)**
+- **Load Balancers**: NGINX, HAProxy, AWS ALB con health checks
+- **Auto-scaling**: Kubernetes HPA, AWS Auto Scaling Groups
+- **Microservices**: Decomposizione servizi con API Gateway
+- **Message Queues**: Kafka, RabbitMQ, AWS SQS per async processing
+- **Event-Driven**: Event sourcing e CQRS patterns
+
+**Container Orchestration**
+- Kubernetes deployment con rolling updates
+- Docker multi-stage builds per ottimizzazione immagini
+- Istio service mesh per comunicazione inter-servizi
+- Helm charts per gestione configurazioni
+
+### 12.2 Database Performance Enterprise
+**Connection Management**
+- **HikariCP** (Java) / **pgBouncer** (PostgreSQL)
+- Connection pooling: max 100 connessioni per istanza
+- Query timeout: 30s per operazioni standard, 5min per report
+- Read replicas per bilanciamento carichi lettura
+
+**Advanced Optimizations**
+- Partitioning per tabelle > 10M records
+- Materialized views per query complesse
+- Archive automatico dati > 12 mesi
+- Database-specific tuning (PostgreSQL vacuum, MySQL query cache)
+
+### 12.3 Multi-Layer Caching Strategy
+**Cache Hierarchy**
+- **L1 (Application)**: In-memory cache (Caffeine, Guava)
+- **L2 (Distributed)**: Redis Cluster per dati condivisi
+- **L3 (CDN)**: CloudFront/Cloudflare per static assets
+- **L4 (Database)**: Query result caching
+
+**Cache Patterns & Policies**
+- Cache-aside per dati read-heavy
+- Write-through per dati critici
+- TTL configurabile per categoria dati
+- Cache warming durante deployment
+
+### 12.4 Enterprise Monitoring & Observability
+**Modern Observability Stack**
+- **APM**: Datadog/New Relic/Dynatrace per deep insights
+- **Distributed Tracing**: OpenTelemetry + Jaeger/Zipkin
+- **Log Management**: ELK Stack (Elasticsearch, Logstash, Kibana)
+- **Metrics**: Prometheus + Grafana per infrastructure
+- **RUM**: Real User Monitoring per performance frontend
+
+**Key Performance Metrics**
+- Response time percentiles (P50, P95, P99 < 200ms, 500ms, 1s)
+- Error rate per endpoint (target < 0.1%)
+- Throughput (supporto minimo 1000 req/sec)
+- Database performance (query time < 50ms average)
+- Cache hit ratio (target > 90%)
+- Resource utilization (CPU < 70%, Memory < 80%)
+
+---
+
+## 13. CONFIGURAZIONE E DEPLOYMENT
+
+### 13.1 Variabili Ambiente
+- Database connection strings
+- JWT secrets
+- Email service configuration
+- External API keys
+- File storage configuration
+
+### 13.2 Database Schema
+- Migration scripts
+- Seed data per sviluppo
+- Backup procedures
+- Indexing strategy
+
+---
+
+## 14. TESTING ENTERPRISE STRATEGY
+
+### 14.1 Comprehensive Test Coverage (Target: 90%+)
+**Unit Testing (60% of test suite)**
+- **Jest** (Node.js) / **pytest** (Python) / **JUnit** (Java)
+- Business logic isolation con dependency injection
+- Test-driven development (TDD) per features critiche
+- Property-based testing per edge cases
+
+**Integration Testing (25% of test suite)**
+- **API Testing**: Postman/Newman, REST Assured, Supertest
+- **Database Testing**: Testcontainers per integration reale
+- **Message Queue Testing**: Test producers/consumers
+- **External Service Mocking**: WireMock, MSW per API esterne
+
+**End-to-End Testing (10% of test suite)**
+- **Playwright** / **Cypress** per full user journeys
+- **Contract Testing**: Pact per API compatibility
+- **Load Testing**: k6, JMeter per performance validation
+- **Security Testing**: OWASP ZAP automated scans
+
+**Advanced Testing Strategies**
+- **Mutation Testing**: Stryker per test quality assessment
+- **Chaos Testing**: Chaos Monkey per resilience testing
+- **A/B Testing**: Feature flags per gradual rollouts
+- **Compliance Testing**: Automated regulatory checks
+
+### 14.2 Test Data Management
+**Data Generation & Management**
+- **Factory Pattern**: Factory Boy (Python), Factory Girl (Ruby)
+- **Synthetic Data**: Faker libraries per dati realistici
+- **Data Versioning**: Snapshots per test consistenti
+- **Cleanup Automation**: Teardown automatico dopo test
+
+**Environment Management**
+- **Docker Compose**: Multi-service testing environment
+- **Database Migrations**: Flyway/Liquibase per schema testing
+- **Configuration Management**: Environment-specific configs
+- **Secret Management**: HashiCorp Vault per test credentials
+
+### 14.3 Continuous Testing Pipeline
+**CI/CD Integration**
+- **Parallel Testing**: Test parallelization per speed
+- **Test Reporting**: Allure, ReportPortal per visual reports
+- **Quality Gates**: SonarQube integration per code quality
+- **Automated Regression**: Trigger su ogni commit/PR
+
+**Performance & Security Testing**
+- **Performance Budgets**: Response time thresholds
+- **Security Scanning**: SAST/DAST integration nella pipeline
+- **Accessibility Testing**: Automated a11y checks
+- **API Documentation Testing**: OpenAPI validation
+
+---
+
+## 15. DOCUMENTAZIONE
+
+### 15.1 API Documentation
+- OpenAPI/Swagger specification
+- Esempi requests/responses
+- Error codes documentation
+- Rate limiting information
+
+### 15.2 Deployment Guide
+- Setup instructions
+- Configuration examples
+- Troubleshooting guide
+- Monitoring setup
+
+---
+
+## 16. MODERN DEVELOPMENT PRACTICES & DEVOPS
+
+### 16.1 Code Quality & Standards
+**Code Quality Gates**
+- **Static Code Analysis**: SonarQube con quality gates obbligatori
+- **Code Coverage**: Minimum 80% per merge, 90% target per production
+- **Linting**: ESLint/Prettier (Node.js), Black/Flake8 (Python), Checkstyle (Java)
+- **Security Scanning**: SAST tools (Snyk, OWASP) nella CI pipeline
+
+**Git Workflow & Branching Strategy**
+- **GitFlow**: Feature branches, develop, release, hotfix branches
+- **Conventional Commits**: Standardized commit messages con semantic versioning
+- **Pull Request Reviews**: Mandatory code reviews con CODEOWNERS
+- **Automated Checks**: CI checks obbligatori prima del merge
+
+### 16.2 CI/CD Pipeline Enterprise
+**Continuous Integration**
+- **Build Pipeline**: Automated testing, code quality, security scans
+- **Artifact Management**: Docker images con multi-stage builds
+- **Environment Promotion**: Dev → Test → Staging → Production
+- **Feature Flags**: LaunchDarkly/Unleash per controlled rollouts
+
+**Deployment Strategies**
+- **Blue-Green Deployment**: Zero-downtime deployments
+- **Canary Releases**: Gradual traffic shifting (5%-25%-50%-100%)
+- **Database Migrations**: Backward-compatible migrations con rollback
+- **Infrastructure as Code**: Terraform/Pulumi per resource management
+
+### 16.3 Security-First Development
+**DevSecOps Integration**
+- **Shift-Left Security**: Security checks in early development stages
+- **Container Scanning**: Vulnerability scanning per Docker images
+- **Dependency Scanning**: Automated vulnerability checks per dependencies
+- **Secrets Management**: HashiCorp Vault/AWS Secrets Manager
+
+**Security Best Practices**
+- **OWASP Top 10**: Mitigation strategies per common vulnerabilities
+- **API Security**: Rate limiting, authentication, input validation
+- **Data Protection**: Encryption at rest e in transit
+- **Penetration Testing**: Regular security assessments
+
+---
+
+## PRIORITÀ IMPLEMENTAZIONE
+
+### FASE 1 - CORE (Priorità Alta)
+1. Autenticazione e gestione utenti
+2. Gestione prodotti e catalogo
+3. Creazione e gestione ordini base
+4. Stati ordini e workflow approvazione
+
+### FASE 2 - BUSINESS LOGIC (Priorità Media)
+1. Sistema controproposte
+2. Gestione picking e disponibilità
+3. Gestione fornitori e prezzi
+4. Notifiche base
+5. Import/Export batch prezzi e fornitori
+6. Target prezzi e alert stock
+
+### FASE 3 - ADVANCED (Priorità Bassa)
+1. Analytics avanzate e reporting
+2. Business rules engine
+3. Workflow multi-livello
+4. Integrazioni esterne
+5. Ottimizzazioni performance
+6. Features avanzate
+
+### NUOVE FUNZIONALITÀ IDENTIFICATE
+
+#### Gestione Batch Prezzi/Fornitori (FASE 2)
+- **Import massivo**: Excel/CSV con validazione real-time
+- **Mapping automatico**: Riconoscimento colonne da template
+- **Gestione errori**: Retry automatico e report dettagliati
+- **Template dinamici**: Generazione template personalizzati
+- **Operazioni bulk**: Aggiornamenti multipli con transazioni
+
+#### Target Prezzi e Alert (FASE 2)
+- **Price targeting**: Impostazione prezzi obiettivo per prodotto/farmacia
+- **Alert intelligenti**: Notifiche automatiche al raggiungimento target
+- **Stock monitoring**: Monitoraggio real-time disponibilità
+- **Threshold management**: Soglie personalizzabili per categoria
+
+#### Workflow Avanzato (FASE 3)
+- **Multi-level approval**: Approvazioni a cascata basate su importo/categoria
+- **Business rules**: Motore regole configurabile per automazioni
+- **Exception handling**: Gestione automatica eccezioni ordini
+- **Audit completo**: Tracciamento completo lifecycle ordini
+
+---
+
+## NOTE TECNICHE
+
+### STACK TECNOLOGICO ENTERPRISE 2024
+
+#### Backend Framework (Raccomandazioni basate su industry analysis)
+
+### 🎯 CRITERI DI SCELTA STACK TECNOLOGICO
+
+#### Matrice di Valutazione
+| Criterio | Node.js | Python | Java Spring | Peso |
+|----------|---------|---------|-------------|-------|
+| **Performance** | 8/10 | 7/10 | 9/10 | 25% |
+| **Scalabilità** | 9/10 | 8/10 | 10/10 | 25% |
+| **Ecosystem** | 9/10 | 8/10 | 8/10 | 20% |
+| **Team Skill** | 8/10 | 7/10 | 6/10 | 15% |
+| **Maintenance** | 7/10 | 8/10 | 9/10 | 10% |
+| **Time to Market** | 9/10 | 8/10 | 6/10 | 5% |
+
+#### Raccomandazione: **Node.js TypeScript** (Score: 8.3/10)
+
+**Motivazioni:**
+- **Performance**: Ottima per I/O intensive operations (tipiche di B2B)
+- **Scalabilità**: Event-driven architecture nativa
+- **Ecosystem**: NPM ecosystem ricchissimo
+- **Rapido Development**: Prototipazione veloce per MVP
+
+**Opzione A - Node.js Ecosystem (RACCOMANDATO)**
+- **Framework**: Express.js / Fastify per performance
+- **TypeScript**: Mandatory per type safety
+- **ORM**: Prisma / TypeORM per database management
+- **Validation**: Joi / Zod per input validation
+- **Async Processing**: Bull/BullMQ per queue management
+
+**Opzione B - Python Enterprise (ALTERNATIVA)**
+- **Framework**: FastAPI per performance e auto-documentation
+- **ORM**: SQLAlchemy 2.0 con async support
+- **Validation**: Pydantic v2 per data validation
+- **Task Queue**: Celery con Redis backend
+- **Uso Consigliato**: Se team ha forte expertise Python
+
+**Opzione C - Java Spring Ecosystem (ENTERPRISE)**
+- **Framework**: Spring Boot 3.x con WebFlux per reactive programming
+- **ORM**: Spring Data JPA con Hibernate
+- **Security**: Spring Security per authentication
+- **Messaging**: Spring Cloud Stream per event handling
+- **Uso Consigliato**: Per grandi enterprise con requisiti compliance elevati
+
+#### Database & Storage
+- **Primary DB**: PostgreSQL 15+ con partitioning
+- **Cache Layer**: Redis 7.x Cluster per alta disponibilità
+- **Search Engine**: Elasticsearch 8.x per full-text search
+- **Object Storage**: AWS S3 / MinIO per file management
+- **Time Series**: InfluxDB per metrics e analytics
+
+#### Infrastructure & DevOps
+**Container Platform**
+- **Containers**: Docker con multi-stage builds
+- **Orchestration**: Kubernetes 1.28+ con Helm charts
+- **Service Mesh**: Istio per service-to-service communication
+- **Ingress**: NGINX Ingress Controller con cert-manager
+
+**CI/CD Pipeline**
+- **CI/CD**: GitLab CI / GitHub Actions
+- **Code Quality**: SonarQube per static analysis
+- **Security Scanning**: Snyk / OWASP ZAP per vulnerability assessment
+- **Deployment**: ArgoCD per GitOps deployment
+
+#### Monitoring & Observability (Modern Stack 2024)
+**Core Observability**
+- **APM**: Datadog / New Relic per application monitoring
+- **Tracing**: OpenTelemetry + Jaeger per distributed tracing
+- **Logging**: ELK Stack (Elasticsearch, Logstash, Kibana)
+- **Metrics**: Prometheus + Grafana per infrastructure metrics
+- **Alerting**: PagerDuty per incident management
+
+**Advanced Monitoring Tools**
+- **Error Tracking**: Sentry per real-time error monitoring
+- **Performance**: Lighthouse CI per frontend performance
+- **Security**: Falco per runtime security monitoring
+- **Cost**: Kubecost per Kubernetes cost optimization
+
+### ARCHITETTURA ENTERPRISE PATTERNS
+
+#### Microservices Design Patterns
+**Service Decomposition**
+- **Domain-Driven Design (DDD)**: Bounded contexts per business domains
+- **Database per Service**: Evitare shared databases
+- **API Gateway**: Centralized routing e authentication
+- **Service Registry**: Consul / Eureka per service discovery
+
+**Communication Patterns**
+- **Synchronous**: REST APIs con OpenAPI documentation
+- **Asynchronous**: Event-driven con Kafka / RabbitMQ
+- **Circuit Breaker**: Hystrix / Resilience4j per fault tolerance
+- **Bulkhead Pattern**: Isolamento risorse critiche
+
+#### Scalability & Resilience
+**High Availability Patterns**
+- **Load Balancing**: Round-robin, least connections, health-based
+- **Auto Scaling**: Horizontal Pod Autoscaler (HPA) su Kubernetes
+- **Multi-Region**: Active-passive setup per disaster recovery
+- **Chaos Engineering**: Regular failure injection testing
+
+**Data Management Patterns**
+- **CQRS**: Command Query Responsibility Segregation
+- **Event Sourcing**: Immutable event store per audit trail
+- **Saga Pattern**: Distributed transaction management
+- **CDC (Change Data Capture)**: Real-time data replication
+
+---
+
+## ESEMPI PRATICI E CASI D'USO
+
+### 🎬 SCENARIO COMPLETO: Ordine con Picking e Controproposta
+
+#### Step 1: Farmacia Crea Ordine
+Una farmacia di Milano deve rifornire urgentemente alcuni prodotti per il weekend.
+
+**Azione**: Crea nuovo ordine con 3 prodotti
+```json
+POST /api/orders
+{
+  "buyerId": "pharmacy_milano_001",
+  "priority": "High",
+  "deliveryDate": "2024-01-26T08:00:00Z",
+  "items": [
+    {"productId": "prod_tachipirina_500", "quantity": 100, "supplierId": "supplier_pharma_supply"},
+    {"productId": "prod_moment_200", "quantity": 50, "supplierId": "supplier_pharma_supply"},  
+    {"productId": "prod_aspirina_500", "quantity": 75, "supplierId": "supplier_med_distribution"}
+  ]
+}
+```
+
+#### Step 2: Sistema Verifica Stock
+Il sistema verifica automaticamente la disponibilità:
+- Tachipirina 500mg: 80 disponibili (20 in meno)
+- Moment 200mg: 50 disponibili (quantità OK)
+- Aspirina 500mg: 0 disponibili (prodotto esaurito)
+
+#### Step 3: Admin Gestisce Situazione Critica
+L'admin vede l'ordine high priority e interviene manualmente.
+
+**Azione**: Crea controproposta con alternative
+```json
+POST /api/orders/ODA-2024-001/counter-offer
+{
+  "message": "Stock parziale disponibile. Proponiamo alternative per Aspirina.",
+  "items": [
+    {
+      "productId": "prod_tachipirina_500",
+      "originalQuantity": 100,
+      "proposedQuantity": 80,
+      "proposedPrice": 3.10,
+      "reason": "Stock limitato, sconto 5% applicato"
+    },
+    {
+      "productId": "prod_moment_200", 
+      "originalQuantity": 50,
+      "proposedQuantity": 50,
+      "reason": "Quantità confermata"
+    }
+  ],
+  "alternatives": [
+    {
+      "originalProductId": "prod_aspirina_500",
+      "alternativeProductId": "prod_aspirina_c_500",
+      "alternativeName": "Aspirina C 500mg effervescente",
+      "quantity": 75,
+      "price": 5.20,
+      "reason": "Aspirina tradizionale esaurita"
+    }
+  ]
+}
+```
+
+#### Step 4: Farmacia Valuta e Risponde
+La farmacia riceve notifica e valuta la proposta.
+
+**Azione**: Accetta parzialmente
+```json
+POST /api/orders/ODA-2024-001/accept-counter
+{
+  "acceptedItems": ["prod_tachipirina_500", "prod_moment_200"],
+  "rejectedItems": ["prod_aspirina_c_500"],
+  "message": "Accettiamo riduzione Tachipirina e Moment. Per Aspirina aspettiamo prossima disponibilità."
+}
+```
+
+#### Step 5: Finalizzazione e Spedizione
+Il sistema:
+1. Aggiorna lo stock
+2. Invia ordine al magazzino
+3. Notifica tutti i soggetti coinvolti
+4. Programma picking per il giorno successivo
+
+### 🔄 CASO D'USO: Import Massivo con Gestione Errori
+
+#### Scenario: Fornitore Aggiorna 2000 Prezzi
+Un grande fornitore farmaceutico carica il listino mensile tramite Excel.
+
+#### Step 1: Upload File
+```http
+POST /api/product-prices/batch
+Content-Type: multipart/form-data
+file: listino_gennaio_2024.xlsx (2MB, 2000 righe)
+```
+
+#### Step 2: Validazione Real-time
+Il sistema processa il file e trova problemi:
+- 50 EAN non riconosciuti (prodotti nuovi?)
+- 30 prezzi negativi (errori di battitura)  
+- 15 duplicati (stesso EAN/fornitore)
+
+#### Step 3: Report Interattivo
+```json
+{
+  "batchId": "batch_20240122_001",
+  "status": "PARTIAL_SUCCESS", 
+  "processed": 1905,
+  "successful": 1905,
+  "failed": 95,
+  "actions": {
+    "autoRetry": "Riprova 45 errori minori automaticamente",
+    "manualReview": "50 EAN necessitano creazione prodotto"
+  }
+}
+```
+
+#### Step 4: Risoluzione Interattiva
+Il fornitore può:
+1. **Auto-fix** errori semplici (prezzi negativi → valore assoluto)
+2. **Mappare** EAN sconosciuti a prodotti esistenti
+3. **Creare** nuovi prodotti per EAN validi ma non in catalogo
+4. **Scaricare** template errori per correzione offline
+
+---
+
+## GLOSSARIO
+
+### Termini Tecnici
+
+**API Gateway**: Punto di ingresso centralizzato per tutte le richieste API che gestisce autenticazione, rate limiting e routing.
+
+**CQRS (Command Query Responsibility Segregation)**: Pattern architetturale che separa le operazioni di lettura da quelle di scrittura per ottimizzare performance e scalabilità.
+
+**Circuit Breaker**: Pattern di resilienza che previene chiamate ripetute a servizi non funzionanti, evitando cascading failures.
+
+**Event Sourcing**: Tecnica di persistenza che memorizza tutti i cambiamenti di stato come sequenza di eventi immutabili.
+
+**Hystrix Pattern**: Framework per gestire latenza e fault tolerance in sistemi distribuiti, implementando circuit breaker e bulkhead isolation.
+
+**JWT (JSON Web Token)**: Standard per trasmettere informazioni in modo sicuro tra parti attraverso token JSON digitalmente firmati.
+
+**Microservices**: Architettura che struttura un'applicazione come insieme di servizi piccoli, indipendenti e comunicanti.
+
+**ORM (Object-Relational Mapping)**: Tecnica di programmazione per convertire dati tra sistemi di tipi incompatibili usando linguaggi di programmazione orientati agli oggetti.
+
+**Rate Limiting**: Tecnica per controllare il numero di richieste che un utente può fare alle API in un determinato periodo di tempo.
+
+**SAGA Pattern**: Pattern per gestire transazioni distribuite attraverso una sequenza di transazioni locali coordinate.
+
+### Termini Business Farmaceutici
+
+**EAN (European Article Number)**: Codice a barre standard europeo per identificazione univoca dei prodotti.
+
+**GDP (Good Distribution Practice)**: Linee guida per la corretta distribuzione di medicinali per uso umano.
+
+**MINSAN**: Codice identificativo assegnato dal Ministero della Salute ai medicinali autorizzati in Italia.
+
+**ODA (Ordine Diretto Acquisto)**: Ordine effettuato direttamente dalla farmacia al fornitore senza passare attraverso intermediari.
+
+**Picking**: Processo di selezione e prelievo dei prodotti dal magazzino per l'evasione degli ordini.
+
+### Termini Compliance
+
+**21 CFR Part 11**: Regolamento FDA che stabilisce i criteri per l'uso di firme elettroniche e record elettronici.
+
+**AIFA**: Agenzia Italiana del Farmaco, ente regolatorio italiano per i medicinali.
+
+**GDPR (General Data Protection Regulation)**: Regolamento europeo sulla protezione dei dati personali.
+
+**PIA (Privacy Impact Assessment)**: Valutazione preventiva dell'impatto sulla privacy di nuovi progetti o trattamenti di dati.
+
+---
+
+## 📞 SUPPORTO E CONTATTI
+
+**Per chiarimenti tecnici**: Riferirsi al team di sviluppo o al solution architect del progetto.
+
+**Per compliance e requisiti normativi**: Consultare il DPO (Data Protection Officer) e i consulenti legali specializzati in farmaceutico.
+
+**Per aspetti business**: Confrontarsi con gli stakeholder farmaceutici e i product owner del progetto.
